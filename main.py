@@ -11,20 +11,21 @@ from database.database import engine
 import datetime
 import asyncio
 import os
-from dotenv import load_dotenv, dotenv_values
+from dotenv import load_dotenv, find_dotenv, set_key
 
 
 models.Base.metadata.create_all(bind=engine)
 mm = MapManager()
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
-if not load_dotenv():
+if not find_dotenv(usecwd=True):
+    print("couldn't find .env")
     open(".env", 'x')
-
+load_dotenv(".env")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 if not DISCORD_TOKEN:
     DISCORD_TOKEN = input("Please enter the discord token: ")
-    os.putenv("DISCORD_TOKEN", DISCORD_TOKEN)
+    set_key(".env", "DISCORD_TOKEN", DISCORD_TOKEN)
     print("discord token added")
 territories= mm.list_countries()
 if not os.path.isdir("maps"):
@@ -199,7 +200,7 @@ async def start_game(interaction: discord.Interaction):
         timer = datetime.datetime.now() + datetime.timedelta(minutes=2)
         timer = int(timer.timestamp())
         message = await interaction.channel.send(f'the game is starting <t:{timer}:R>',view=view)
-        await asyncio.sleep(120)
+        await asyncio.sleep(10)
         for i in view.children:
             i.disabled = True
         await message.edit(content=f'the game started',view=view)

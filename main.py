@@ -18,12 +18,18 @@ models.Base.metadata.create_all(bind=engine)
 mm = MapManager()
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
-load_dotenv()
+if not load_dotenv():
+    open(".env", 'x')
+
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+if not DISCORD_TOKEN:
+    DISCORD_TOKEN = input("Please enter the discord token: ")
+    os.putenv("DISCORD_TOKEN", DISCORD_TOKEN)
+    print("discord token added")
 territories= mm.list_countries()
 if not os.path.isdir("maps"):
     os.makedirs("maps")
-    
+
 ### CHECKS ###
 async def check_manager(interaction: discord.Interaction):
     guild_id = interaction.guild.id

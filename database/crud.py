@@ -62,16 +62,16 @@ def create_game(uuid: int, guild: int,):
     db.commit()
     db.refresh(db_game)
     db.close()
+    return db_game
 
 def join_game(user_id: int, game_id: int, ):
+    
     db = get_session()
     user = db.query(models.User).filter(models.User.id == user_id).first()
     game = db.query(models.Game).filter(models.Game.id == game_id).first()
-    joined = db.query(models.User_Game_Association).filter(models.User_Game_Association.user_id == user_id, models.User_Game_Association.game_id == game_id).first()
     if user is None or game is None:
         return 0
-    print(joined)
-    if joined:
+    if game_id in [user_game.id for user_game in user.games]:
         return 1
     try:
         user.games.append(game)
@@ -81,9 +81,13 @@ def join_game(user_id: int, game_id: int, ):
     except Exception as e:
         db.rollback()
         db.close()
-        print(e)
-        print(type(e))
         return 0
+
+def get_players_by_game(game_id: int):
+    db = get_session()
+    game = db.query(models.Game).filter(models.Game.id == game_id).first()
+    
+    return game.users
 
 def get_guild_by_discord_id(discord_id: int):
     db = get_session()
@@ -91,19 +95,19 @@ def get_guild_by_discord_id(discord_id: int):
     db.close()
     return guild
 
-def update_guild(discord_id: int, manager_role_id: int, game_channel_id: int):
+def update_guild(discord_id: int, manager_role_id: int = None, game_category_id: int = None, games : int = None):
     db = get_session()
     guild = db.query(models.Guild).filter(models.Guild.discord_id == discord_id)
-    guild.update({models.Guild.discord_id: discord_id,
-                  models.Guild.manager_role_id: manager_role_id,
-                  models.Guild.game_channel_id: game_channel_id})
+    if manager_role_id: guild.update({models.Guild.manager_role_id: manager_role_id})
+    if game_category_id: guild.update({models.Guild.game_category_id: game_category_id})
+    if games:  guild.update({models.Guild.games: games})
     db.commit()
     db.close()
     return guild
 
-def create_guild(discord_id: int, manager_role_id: int, game_channel_id: int):
+def create_guild(discord_id: int, manager_role_id: int, game_category_id: int):
     db = get_session()
-    guild = models.Guild(discord_id=discord_id, manager_role_id=manager_role_id, game_channel_id=game_channel_id)
+    guild = models.Guild(discord_id=discord_id, manager_role_id=manager_role_id, game_category_id=game_category_id)
     db.add(guild)
     db.commit()
     db.refresh(guild)

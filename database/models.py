@@ -20,6 +20,9 @@ class Game(Base):
     id = Column(Integer, primary_key=True, index=True)
     uuid = Column(String, unique=True)
     guild = Column(Integer)
+    channel_id = Column(Integer, unique=True)
+    round = Column(Integer, default=0)
+    user_id_turn = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.datetime.now())
     status = Column(Boolean, default=True)
     users = relationship("User", secondary=user_game, back_populates="games")
@@ -30,7 +33,7 @@ class Guild(Base):
     discord_id = Column(Integer, unique=True)
     manager_role_id = Column(Integer, unique=True)
     game_category_id = Column(Integer, unique=True)
-    games = Column(Integer, default=0)
+    game_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.datetime.now())
     
     

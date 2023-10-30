@@ -4,18 +4,21 @@ from cairosvg import svg2png
 from discord.ext import commands
 from discord import app_commands
 from map_manager import MapManager
+from game_manager import GameManager
 from PIL import Image
 import database.crud as crud
 import database.models as models
 from database.database import engine
 import datetime
 import asyncio
+import pandas as pd
 import os
 from dotenv import load_dotenv, find_dotenv, set_key
 
 
 models.Base.metadata.create_all(bind=engine)
 mm = MapManager()
+gm = GameManager()
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 if not find_dotenv(usecwd=True):
@@ -28,14 +31,21 @@ if not DISCORD_TOKEN:
     set_key(".env", "DISCORD_TOKEN", DISCORD_TOKEN)
     print("discord token added")
 territories = mm.list_countries()
+
 if not os.path.isdir("maps"):
     os.makedirs("maps")
-
-
+if not os.path.isdir("game-data"):
+    os.makedirs("game-data")
+if not os.path.isdir("game-data/map-data"): os.makedirs("game-data/map-data")
+if not os.path.isdir("game-data/player-data"): os.makedirs("game-data/player-data")
 ### CHECKS ###
 async def check_manager(interaction: discord.Interaction):
     guild_id = interaction.guild.id
-    manager_role_id = crud.get_guild_by_discord_id(guild_id).manager_role_id
+    guild = crud.get_guild_by_discord_id(guild_id)
+    if not guild:
+        await interaction.response.send_message("this server has not been setup yet. Please use the `/setup` command as an administrator.", ephemeral=True)
+        return False
+    manager_role_id = guild.manager_role_id
     if manager_role_id in [role.id for role in interaction.user.roles]:
         return True
     else:
@@ -80,9 +90,9 @@ class SetupOVerwriteView(discord.ui.View):
 
 
 class JoinGameView(discord.ui.View):
-    def __init__(self, map_id):
+    def __init__(self, game_id):
         super().__init__()
-        self.map_id = str(map_id)
+        self.game_id = str(game_id)
 
     @discord.ui.button(label="join game", style=discord.ButtonStyle.green)
     async def join_game(self, interaction: discord.Interaction, button: discord.Button):
@@ -91,7 +101,7 @@ class JoinGameView(discord.ui.View):
         # if not create a user
         if not user:
             user = crud.create_user(interaction.user.id)
-        game = crud.get_game_by_uuid(self.map_id)
+        game = crud.get_game_by_game_id(self.game_id)
         # if the game is not in the database, something is wrong
         if not game:
             await interaction.response.send_message(
@@ -111,6 +121,10 @@ class JoinGameView(discord.ui.View):
         elif confirmation == 2:
             await interaction.response.send_message(
                 "you have joined the game!", ephemeral=True
+            )
+        elif confirmation == 3:
+            await interaction.response.send_message(
+                "This game is full", ephemeral=True
             )
 
 
@@ -141,7 +155,8 @@ async def setup(interaction: discord.Interaction, action):
             reason="setup game configuration",
         )
         embed.add_field(
-            name=":white_check_mark: ROLE SETUP", value=f"created <@&{manager_role.id}>"
+            name=":white_check_mark: ROLE SETUP", 
+            value=f"created <@&{manager_role.id}>"
         )
     except discord.Forbidden:
         check = False
@@ -226,7 +241,6 @@ async def setup(interaction: discord.Interaction, action):
                 inline=False,
             )
         await message.edit(embed=embed)
-        return
     else:
         # If one or more permissions were not granted, the script will undo
         # the setup so far. This way, when they run the script again,
@@ -241,9 +255,32 @@ async def setup(interaction: discord.Interaction, action):
             inline=False,
         )
         await message.edit(embed=embed)
-        return
 
+async def send_map(game_id, channel: discord.TextChannel):
+    filepath = f"./maps/map-{game_id}.svg"
+    svg2png(url=filepath, write_to="temp_img.png", scale=2)
+    
+    image = Image.open("temp_img.png")
+    width, height = image.size
+    background = Image.new("RGBA", (width, height), (255, 255, 255, 255))
+    background.paste(image, (0, 0), image)
+    background.save("temp_img.png")
+    file = discord.File("temp_img.png")
+    await channel.send(file=file)
 
+async def send_named_map(channel: discord.TextChannel):
+    filepath=f"map_named.svg"
+    svg2png(url=filepath, write_to="temp_img.png", scale=2)
+    image = Image.open("temp_img.png")
+    width, height = image.size
+    background = Image.new("RGBA", (width, height), (255, 255, 255, 255))
+    background.paste(image, (0, 0), image)
+    background.save("temp_img.png")
+    file = discord.File("temp_img.png")
+    await channel.send(file=file)
+#########################################################
+#                       BOT COMMANDS                    #
+#########################################################
 @bot.event
 async def on_ready():
     print("bot is ready")
@@ -270,17 +307,7 @@ async def on_guild_join(guild: discord.Guild):
             pass
 
 
-async def send_map(map_id, channel: discord.TextChannel):
-    filepath = f"./maps/map-{map_id}.svg"
-    svg2png(url=filepath, write_to="temp_img.png")
-    image = Image.open("temp_img.png")
-    width, height = image.size
-    background = Image.new("RGBA", (width, height), (255, 255, 255, 255))
-    background.paste(image, (0, 0), image)
-    background.save("temp_img.png")
-    file = discord.File("temp_img.png")
-    await channel.send(file=file)
-    await channel.send(f"`map_id: {map_id}`")
+
 
 
 # this command sets up the bot and applies the server specific configuration.
@@ -311,10 +338,7 @@ async def add_manager(interaction: discord.Interaction, member: discord.Member):
         print(manager_role_id)
         manager_role = interaction.guild.get_role(manager_role_id)
         await member.add_roles(manager_role)
-        await interaction.response.send_message(
-            f"The role <@&{manager_role_id}> was added to <@{member.id}>",
-            ephemeral=True,
-        )
+        await interaction.response.send_message(f"The role <@&{manager_role_id}> was added to <@{member.id}>",ephemeral=True)
 
 
 # initiates a game
@@ -322,37 +346,42 @@ async def add_manager(interaction: discord.Interaction, member: discord.Member):
 async def start_game(interaction: discord.Interaction):
     if await check_manager(interaction):
         await interaction.response.send_message("preparing game...", ephemeral=True)
-        map_id = mm.create_map()
-        game = crud.create_game(str(map_id), interaction.guild_id)
-        view = JoinGameView(map_id=map_id)
+        
+        guild = crud.get_guild_by_discord_id(interaction.guild_id)
+        category = discord.utils.get(interaction.guild.categories, id=guild.game_category_id)
+        channel = await interaction.guild.create_text_channel(name=f"game-#{guild.game_count+1}", category=category,)
+        
+        game_id, game = gm.register_game(guild.id, channel_id=channel.id)
+        await channel.edit(topic=f"game_id: {game_id}")
+        view = JoinGameView(game_id=game_id)
         timer = datetime.datetime.now() + datetime.timedelta(minutes=2)
         timer = int(timer.timestamp())
-        message = await interaction.channel.send(
-            f"the game is starting <t:{timer}:R>", view=view
-        )
+        message = await interaction.channel.send(f"the game is starting <t:{timer}:R>", view=view)
         await asyncio.sleep(10)
         for i in view.children:
             i.disabled = True
-
+        players, colors_players = gm.initiate_game_data(game_id)
+        if len(players) <= 1:
+            await message.edit(content=f"The game was cancelled due to an insufficient number of players.", view=None)
+            await gm.delete_game(game_id, interaction)
+            return
         await message.edit(content=f"the game started", view=view)
-        guild = crud.get_guild_by_discord_id(interaction.guild_id)
-        category = discord.utils.get(interaction.guild.categories, id=guild.game_category_id)
-        channel = await interaction.guild.create_text_channel(
-            name=f"game-#{guild.games+1}", category=category
-        )
-        crud.update_guild(interaction.guild_id, games=guild.games + 1)
-        users = crud.get_players_by_game(game.id)
         overwrite = discord.PermissionOverwrite()
         overwrite.view_channel = True
-        mention_string = ""
-        for user in users:
-            discord_id = user.discord_id
+        mention_string = ''
+        embed = discord.Embed(title=f"Welcome to the game!")
+        for e, player in enumerate(players):
+            emoji = gm.colors_dict[colors_players[e]][0]
+            discord_id = player.discord_id
+            embed.add_field(name=f"{emoji} player {e+1}", value=f"<@{discord_id}>", inline=False)
+            mention_string +=  f'<@{discord_id}>'
             member = interaction.guild.get_member(discord_id)
             await channel.set_permissions(target=member,overwrite=overwrite)
-            mention_string += f"||<@{discord_id}>||"
-        await channel.send(content=mention_string)
-
-
+        embed.set_footer(text=f"game-id: {game_id}")
+        await channel.send(content=mention_string, embed=embed)
+        await send_map(game_id, channel)
+        await gm.start(game_id, interaction)
+        
 ## ---> continue here
 
 

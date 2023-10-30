@@ -5,13 +5,12 @@ ns0_namespace = "http://www.w3.org/2000/svg"
 class MapManager():
     def __init(self):
         pass
-    def create_map(self):
-        tree = ET.parse("map.svg")
-        map_id = uuid.uuid4()
-        tree.write(f"maps/map-{map_id}.svg")
-        return map_id
-    def update_country(self, map_id, country, color_code):
-        filename = f'maps/map-{map_id}.svg'
+    def create_map(self, game_id : str):
+        tree = ET.parse("templates/map_named.svg")
+        tree.write(f"maps/map-{game_id}.svg")
+        return game_id
+    def update_country(self, game_id, country, color_code):
+        filename = f'maps/map-{game_id}.svg'
         tree = ET.parse(filename)
         root = tree.getroot()
         target_country = root.find(".//"+"{http://www.w3.org/2000/svg}"+f"path[@id='{country}']")
@@ -26,18 +25,19 @@ class MapManager():
         tree = ET.parse(filename)
         root = tree.getroot()
         countries = root.find(".//"+"{http://www.w3.org/2000/svg}"+f"g[@id='layer4']")
-        return  [country.get("id") for country in countries.iter()]
-            
-    
+        region_list = [country.get("id") for country in countries.iter()]
+        region_list.pop(0)
+        return region_list
+
 if __name__ == "__main__":
     mm = MapManager()
-    map_id = mm.create_map()
-    print(map_id)
+    game_id = mm.create_map()
+    print(game_id)
     for i in mm.list_countries()[1:]:
         code="#"
         for x in range(6):
             code +=str(random.choice(["F",0,1,2,3,4,5,6,7,8,9]))
         print(code)
-        print(mm.update_country(map_id, i, code))
+        print(mm.update_country(game_id, i, code))
     
     

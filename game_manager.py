@@ -1,4 +1,5 @@
 from map_manager import MapManager
+from discord import app_commands
 import pandas as pd
 import shutil
 from database import crud
@@ -22,6 +23,61 @@ class GameManager():
                "orange" : [":orange_square:","#f4900c"],
                "black"  : [":black_square:","#31373d"]
                }
+        self.territories_north_america = [
+            app_commands.Choice(name="Alaska", value="alaska"),
+            app_commands.Choice(name="Northwest Territory", value="northwest_territory"),
+            app_commands.Choice(name="Alberta", value="alberta"),
+            app_commands.Choice(name="Western United States", value="western_united_states"),
+            app_commands.Choice(name="Eastern United States", value="eastern_united_states"), 
+            app_commands.Choice(name="Central America", value="central_america"), 
+            app_commands.Choice(name="Quebec", value="quebec"),
+            app_commands.Choice(name="Greenland", value="greenland"),
+            app_commands.Choice(name="Ontario", value="ontario"),
+        ]
+        self.territories_south_america = [
+            app_commands.Choice(name="Venezuela", value="venezuela"), 
+            app_commands.Choice(name="Brazil", value="brazil"), 
+            app_commands.Choice(name="Argentina", value="argentina"),
+            app_commands.Choice(name="Peru", value="peru"),
+            
+        ]
+        self.territories_africa = [
+            app_commands.Choice(name="Madagascar", value="madagascar"), 
+            app_commands.Choice(name="North africa", value="north_africa"),
+            app_commands.Choice(name="East africa", value="east_africa"), 
+            app_commands.Choice(name="Congo", value="congo"), 
+            app_commands.Choice(name="South africa", value="south_africa"),
+            app_commands.Choice(name="Egypt", value="egypt"),
+        ]
+        self.territories_europe = [
+            app_commands.Choice(name="Iceland", value="iceland"), 
+            app_commands.Choice(name="Great britain", value="great_britain"), 
+            app_commands.Choice(name="Scandinavia", value="scandinavia"),
+            app_commands.Choice(name="Ukraine", value="ukraine"), 
+            app_commands.Choice(name="Southern europe", value="southern_europe"), 
+            app_commands.Choice(name="Western europe", value="western_europe"), 
+            app_commands.Choice(name="Northern europe", value="northern_europe"),
+        ]
+        self.territories_australia = [
+            app_commands.Choice(name="New guinea", value="new_guinea"),
+            app_commands.Choice(name="Eastern australia", value="eastern_australia"), 
+            app_commands.Choice(name="Indonesia", value="indonesia"),
+            app_commands.Choice(name="Western australia", value="western_australia"),  
+        ]
+        self.territories_asia = [ 
+            app_commands.Choice(name="Japan", value="japan"), 
+            app_commands.Choice(name="Yakursk", value="yakursk"), 
+            app_commands.Choice(name="Kamchatka", value="kamchatka"), 
+            app_commands.Choice(name="Siberia", value="siberia"), 
+            app_commands.Choice(name="Ural", value="ural"), 
+            app_commands.Choice(name="Afghanistan", value="afghanistan"), 
+            app_commands.Choice(name="Middle east", value="middle_east"), 
+            app_commands.Choice(name="India", value="india"), 
+            app_commands.Choice(name="Siam", value="siam"), 
+            app_commands.Choice(name="China", value="china"), 
+            app_commands.Choice(name="Mongolia", value="mongolia"), 
+            app_commands.Choice(name="Irkutsk", value="irkutsk"),
+        ]
 #############################################################
 #                      MANAGEMENT                           #
 #############################################################
@@ -60,7 +116,8 @@ class GameManager():
         player_count = len(players)
         troops_per_player = 40 - (player_count - 2)*5
         player_ids = [player.id for player in players]
-        map_data_file = shutil.copy("templates/game-data.csv", f"game-data/map-data/map-data-{game_id}.csv" )
+        print(player_ids)
+        map_data_file = shutil.copy("templates/map-data.csv", f"game-data/map-data/map-data-{game_id}.csv" )
         player_data_file = f"game-data/player-data/player-data-{game_id}.csv"
         sets = divide_countries(player_ids)
         map_data = pd.read_csv(map_data_file)
@@ -71,6 +128,7 @@ class GameManager():
                 condition = (map_data["region-name"] == region)
                 map_data.loc[condition, "player-id"] = player_id
                 map_data.loc[condition, "color"] = colors_players[i]
+                map_data.loc[condition, "troops"] = 1
                 mm.update_country(game_id, region, colors_players[i])
             player_data_list.append([player_id, colors_players[i],len(sets[player_id]), troops_per_player, "deploy"])
         player_data = pd.DataFrame(player_data_list, columns=["player_id", "color", "territories", "available troops", "current phase"])
@@ -106,8 +164,15 @@ class GameManager():
         os.remove(f"game-data/map-data/map-data-{game_id}")
         os.remove(f"game-data/player-data/player-data-{game_id}")
         os.remove(f"maps/map-{game_id}")
+    
+    async def next_player(self, game_id: int, interaction: discord.Interaction):
+        game = crud.get_game_by_game_id(game_id)
+        game_channel = interaction.guild.get_channel(game.channel_id)
+        current_player = game.user_id_turn
         
-            
+        player_data = self.get_player_data()
+        pass
+        game_channel.send()
 #############################################################
 #                      DATA RETRIEVING                      #
 #############################################################
@@ -119,25 +184,55 @@ class GameManager():
 #############################################################
 #                      GAME ACTIONS                         #
 #############################################################
-    def deploy_troups(self, region_name: str, troops: int, game_id: str, discord_id: int):
-        ##########################################################
-        #           NOT TESTED YET!!!                            #
-        ##########################################################
+    def deploy_troops(self, region_name: str, troops: int, game_id: str, discord_id: int):
+        # return codes:
+        # 0 -> it's not your turn
+        # 1 -> you're not in the correct phase
+        # 2 -> this territory doesn't belong to you
+        # 3 -> you don't have enough available troops
+        # 4 -> troops deployed successfully
+        
+        
+        # TESTED and working: still need to switch automatically on round 0
         player_data_file = f"game-data/player-data/player-data-{game_id}.csv"
         map_data_file = f"game-data/map-data/map-data-{game_id}.csv"
         player_data = pd.read_csv(player_data_file)
         map_data = pd.read_csv(map_data_file)
-        crud.get_user_by_
-        player_data_condition = (player_data["player_id"] == crud.get_user_by_discord_id(discord_id).id)
+        
+        player = crud.get_user_by_discord_id(discord_id)
+        game = crud.get_game_by_game_id(game_id)
+        player_data_condition = (player_data["player_id"] == player.id)
+        # if it's not the players turn, return and abort the deployment
+        if game.user_id_turn != player.id:
+            return 0, None, None
+        
+        # if it is the players turn, but he is not in the right phase (deploy), return and abort the deployment
+        if player_data.loc[player_data_condition, "current phase"].iloc[0] != "deploy":
+            return 1, None, None
+        
+        # if it is the players turn and he is in the right phase, but the region is not his, return and abort the deployment
+        target_condition = map_data.loc[(map_data["region-name"] == region_name), "player-id"].iloc[0]
+        print(target_condition)
+        if target_condition != player.id:
+            return 2, None, None
+        
         available_troops = int(player_data.loc[player_data_condition, "available troops"])
+        
+        # if all the conditions are met, but the player doesn't have enough available troops, return and abort the deployment
+        if troops > available_troops:
+            return 3, available_troops
+        
+        # if all the conditions are met, deploy the troops and update the game-data.
         if troops <= available_troops:
             troops_data = int(map_data.loc[(map_data["region-name"] == region_name), "troops"])
-            player_data.loc[(map_data["region-name"] == region_name), "troops"] = troops_data + troops
-            if troops == available_troops:
+            total_troops = troops_data + troops 
+            map_data.loc[(map_data["region-name"] == region_name), "troops"] = total_troops
+            if troops == available_troops and game.round != 0:
                 player_data.loc[player_data_condition, "current phase"] = "attack"
-            player_data.loc[player_data_condition, "available troops"] = available_troops - troops
+            available_troops -= troops
+            player_data.loc[player_data_condition, "available troops"] = available_troops
             player_data.to_csv(player_data_file)
             map_data.to_csv(map_data_file)
-        else:
-            return False
+            return 4, available_troops, total_troops
+            
     

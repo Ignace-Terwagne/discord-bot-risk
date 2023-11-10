@@ -1,6 +1,9 @@
+from cairosvg import svg2png
 import xml.etree.ElementTree as ET
 import uuid
 import random
+from PIL import Image
+
 ns0_namespace = "http://www.w3.org/2000/svg"
 class MapManager():
     def __init(self):
@@ -28,6 +31,16 @@ class MapManager():
         region_list = [country.get("id") for country in countries.iter()]
         region_list.pop(0)
         return region_list
+    
+    def create_image(self, game_id: int):
+        filepath = f"./maps/map-{game_id}.svg"
+        svg2png(url=filepath, write_to="temp_img.png", scale=2)
+        
+        image = Image.open("temp_img.png")
+        width, height = image.size
+        background = Image.new("RGBA", (width, height), (255, 255, 255, 255))
+        background.paste(image, (0, 0), image)
+        background.save("temp_img.png")
 
 if __name__ == "__main__":
     mm = MapManager()

@@ -1,4 +1,4 @@
-id,region-name,player_id,troops,color
+id,region-name,player-id,troops,color
 1,eastern_australia,0,0,white
 2,indonesia,0,0,white
 3,new_guinea,0,0,white

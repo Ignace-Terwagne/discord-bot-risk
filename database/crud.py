@@ -44,6 +44,12 @@ def get_game_by_game_id(uuid:int):
     db.close()
     return game
 
+def get_game_by_channel_id(channel_id:int):
+    db: Session = get_session()
+    game = db.query(models.Game).filter(models.Game.channel_id == channel_id).first()
+    db.close()
+    return game
+
 def get_games_by_guild(guild: int,):
     db: Session = get_session()
     games = db.query(models.Game).filter(models.Game.guild == guild).all()

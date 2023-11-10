@@ -257,25 +257,7 @@ async def setup(interaction: discord.Interaction, action):
         await message.edit(embed=embed)
 
 async def send_map(game_id, channel: discord.TextChannel):
-    filepath = f"./maps/map-{game_id}.svg"
-    svg2png(url=filepath, write_to="temp_img.png", scale=2)
-    
-    image = Image.open("temp_img.png")
-    width, height = image.size
-    background = Image.new("RGBA", (width, height), (255, 255, 255, 255))
-    background.paste(image, (0, 0), image)
-    background.save("temp_img.png")
-    file = discord.File("temp_img.png")
-    await channel.send(file=file)
-
-async def send_named_map(channel: discord.TextChannel):
-    filepath=f"map_named.svg"
-    svg2png(url=filepath, write_to="temp_img.png", scale=2)
-    image = Image.open("temp_img.png")
-    width, height = image.size
-    background = Image.new("RGBA", (width, height), (255, 255, 255, 255))
-    background.paste(image, (0, 0), image)
-    background.save("temp_img.png")
+    mm.create_image(game_id)
     file = discord.File("temp_img.png")
     await channel.send(file=file)
 #########################################################
@@ -285,7 +267,9 @@ async def send_named_map(channel: discord.TextChannel):
 async def on_ready():
     print("bot is ready")
     try:
+        loaded = await bot.load_extension("commands.deploy")
         synced = await bot.tree.sync()
+        
         for i in synced:
             print(f"SYNCED {i}")
     except Exception as e:
@@ -386,10 +370,29 @@ async def start_game(interaction: discord.Interaction):
 
 
 ## game commands ##
+        
 @bot.tree.command(name="my-games")
 async def get_my_games(interaction: discord.Interaction):
     user = crud.get_user_by_discord_id(interaction.user.id)
-    await interaction.response.send_message(f"{user.games}")
+    embed = discord.Embed()
+    for e, game in enumerate(user.games):
+        embed.add_field(name=f"game {e+1}", value=f"{game.uuid} | {game.created_at}", inline=False)
+        
+    await interaction.response.send_message(embed=embed)
+    
+    
+    
+#################################
+#       ONLY FOR TESTING        #
+#################################
 
-
+@bot.tree.command(name="cleanup-games")
+async def cleanup_games(interaction: discord.Interaction):
+    channels = [channel for channel in interaction.guild.channels if channel.name.startswith("game-")]
+    await interaction.response.send_message(f"deleted `{len(channels)}` channels")
+    
+    for channel in channels:
+        await channel.delete()
+    
+        
 bot.run(DISCORD_TOKEN)
